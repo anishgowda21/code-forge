@@ -1,0 +1,19 @@
+# Go build outputs
+/bin/
+*.exe
+*.test
+*.out
+
+# macOS
+.DS_Store
+
+# Databases and SQLite files
+*.db
+*.db-*
+*.db3
+*.sqlite
+*.sqlite3
+*.sqlite-*
+
+# Data Dir
+data/
