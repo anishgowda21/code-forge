@@ -11,8 +11,16 @@ const schema = `
 CREATE TABLE IF NOT EXISTS users(
 	id		   	TEXT Primary Key,
 	username   	TEXT NOT NULL UNIQUE,
-	created_at 	INTEGER NOT NULL
-)
+	created_at 	TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS repos(
+	id 		 	TEXT Primary Key,
+	owner_id 	TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	name	 	TEXT NOT NULL,
+	created_at	TEXT NOT NULL,
+	UNIQUE(owner_id,name)
+);
 `
 
 func OpenDB(path string) (*sql.DB, error) {

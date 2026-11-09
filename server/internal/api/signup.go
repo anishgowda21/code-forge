@@ -14,7 +14,7 @@ type signUpRequest struct {
 }
 
 func validateUsername(username string) error {
-	if username == "" || len(username) > 39 {
+	if len(username) == 0 || len(username) > 39 {
 		return errors.New("invalid username length")
 	}
 
@@ -46,7 +46,7 @@ func (s *server) signUpHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "username already taken")
 		return
 	case err != nil:
-		log.Printf("signup: store error: %v", err)
+		log.Printf("signup: error: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}

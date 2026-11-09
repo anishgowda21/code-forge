@@ -53,14 +53,14 @@ func preStartupCheck() (port, dbPath, repoPath string) {
 }
 
 func main() {
-	port, dbPath, _ := preStartupCheck()
+	port, dbPath, repoPath := preStartupCheck()
 	db, err := database.OpenDB(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	mux := api.NewServer(db)
+	mux := api.NewServer(db, repoPath)
 
 	addr := fmt.Sprintf("127.0.0.1:%s", port)
 	log.Printf("listening on %s", addr)
