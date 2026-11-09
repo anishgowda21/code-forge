@@ -13,12 +13,29 @@ type signUpRequest struct {
 	Username string `json:"username"`
 }
 
+func validateUsername(username string) error {
+	if username == "" || len(username) > 39 {
+		return errors.New("invalid username length")
+	}
+
+	if !usernameRe.MatchString(username) {
+		return errors.New("invalid username")
+	}
+
+	return nil
+}
+
 func (s *server) signUpHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 
 	var req signUpRequest
 	if err := json.UnmarshalRead(r.Body, &req, json.RejectUnknownMembers(true)); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	if err := validateUsername(req.Username); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

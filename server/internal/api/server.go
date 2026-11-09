@@ -25,6 +25,7 @@ func NewServer(db *sql.DB) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthCheck)
 	mux.HandleFunc("POST /users", s.signUpHandler)
+	mux.HandleFunc("/users/{username}", s.getUser)
 	mux.HandleFunc("/", catchAll)
 	return mux
 }
