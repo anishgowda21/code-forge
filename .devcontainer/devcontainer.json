@@ -1,0 +1,8 @@
+{
+  "name": "code-forge",
+  "image": "mcr.microsoft.com/devcontainers/go:1",
+  "forwardPorts": [8080, 8090],
+  "containerEnv": { "DATA_DIR": "/data", "PORT": "8090" },
+  "mounts": ["source=code-forge-data,target=/data,type=volume"],
+  "postCreateCommand": "sudo chown vscode:vscode /data && (cd server && go mod download)"
+}
