@@ -26,8 +26,9 @@ func NewServer(db *sql.DB, repoPath string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthCheck)
 	mux.HandleFunc("POST /users", s.signUpHandler)
-	mux.HandleFunc("/users/{username}", s.getUser)
-	mux.HandleFunc("POST /users/{username}/repos", s.createNewRepo)
+	mux.HandleFunc("/users/{username}", s.getUserHandler)
+	mux.HandleFunc("/users/{username}/repos", s.getUserReposHandler)
+	mux.HandleFunc("POST /users/{username}/repos", s.createNewRepoHandler)
 	mux.HandleFunc("/", catchAll)
 	return mux
 }

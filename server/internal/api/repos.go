@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/anishgowda21/code-forge/server/internal/database"
 )
+
+var ErrInvalidQueryParam = errors.New("invalid query parameter")
 
 type RepoRequest struct {
 	Name string `json:"name"`
@@ -32,7 +35,25 @@ func validateRepoName(repoName string) error {
 	return nil
 }
 
-func (s *server) createNewRepo(w http.ResponseWriter, r *http.Request) {
+func validatePagParama(limitStr, offsetStr string) (limit, offset int, err error) {
+	limit, err = strconv.Atoi(limitStr)
+	if err != nil {
+		return 0, 0, ErrInvalidQueryParam
+	}
+
+	offset, err = strconv.Atoi(offsetStr)
+	if err != nil {
+		return 0, 0, ErrInvalidQueryParam
+	}
+
+	if limit < 1 || limit > 100 || offset < 0 {
+		return 0, 0, errors.New("query parameter out of range")
+	}
+
+	return limit, offset, nil
+}
+
+func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 	username := r.PathValue("username")
 	var req RepoRequest
@@ -89,4 +110,48 @@ func (s *server) createNewRepo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJson(w, http.StatusCreated, repo)
+}
+
+func (s *server) getUserReposHandler(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.Query()
+
+	username := r.PathValue("username")
+	limitStr := queryParams.Get("limit")
+	if limitStr == "" {
+		limitStr = "20"
+	}
+	offsetStr := queryParams.Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+
+	limit, offset, err := validatePagParama(limitStr, offsetStr)
+
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	user, err := database.FindByUsername(r.Context(), s.db, username)
+
+	switch {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		log.Printf("user get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	repos, err := database.GetUserRepos(r.Context(), s.db, user, limit, offset)
+
+	if err != nil {
+		log.Printf("get repos: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	writeJson(w, http.StatusOK, repos)
 }

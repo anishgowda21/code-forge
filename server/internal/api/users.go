@@ -8,7 +8,7 @@ import (
 	"github.com/anishgowda21/code-forge/server/internal/database"
 )
 
-func (s *server) getUser(w http.ResponseWriter, r *http.Request) {
+func (s *server) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.PathValue("username")
 
 	user, err := database.FindByUsername(r.Context(), s.db, username)
