@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"log"
@@ -9,8 +10,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/anishgowda21/code-forge/server/internal/database"
+	"github.com/anishgowda21/code-forge/server/internal/git"
 )
 
 var ErrInvalidQueryParam = errors.New("invalid query parameter")
@@ -63,6 +66,11 @@ func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateRepoName(req.Name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	user, err := database.FindByUsername(r.Context(), s.db, username)
 
 	switch {
@@ -75,11 +83,6 @@ func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateRepoName(req.Name); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	var repoCreated bool
 	userRepoDir := filepath.Join(s.repoPath, user.Username)
 	repo, err := database.CreateNewRepo(r.Context(),
@@ -89,7 +92,9 @@ func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 
-			if err := initBareRepo(userRepoDir, req.Name); err != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			if err := git.InitBareRepo(ctx, userRepoDir, req.Name); err != nil {
 				return err
 			}
 			repoCreated = true
@@ -100,12 +105,16 @@ func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, database.ErrRepoExists):
 		writeError(w, http.StatusConflict, err.Error())
 		return
+	case errors.Is(err, git.ErrRepoDirExists):
+		log.Printf("repo: orphan dir for %s/%s", user.Username, req.Name)
+		writeError(w, http.StatusConflict, err.Error())
+		return
 	case err != nil:
 		log.Printf("repo: create error: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
 		if repoCreated {
-			cleanUpRepo(userRepoDir, req.Name)
+			git.CleanUpRepo(userRepoDir, req.Name)
 		}
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
