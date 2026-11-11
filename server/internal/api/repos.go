@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/anishgowda21/code-forge/server/internal/database"
@@ -22,38 +20,9 @@ type RepoRequest struct {
 	Name string `json:"name"`
 }
 
-func validateRepoName(repoName string) error {
-	if len(repoName) == 0 || len(repoName) > 100 {
-		return errors.New("invalid repo length")
-	}
-
-	if !repoNameRe.MatchString(repoName) || repoName == "." || repoName == ".." {
-		return errors.New("invalid repo name")
-	}
-
-	if strings.HasSuffix(repoName, ".git") {
-		return errors.New("repository name cannot end with .git")
-	}
-
-	return nil
-}
-
-func validatePagParama(limitStr, offsetStr string) (limit, offset int, err error) {
-	limit, err = strconv.Atoi(limitStr)
-	if err != nil {
-		return 0, 0, ErrInvalidQueryParam
-	}
-
-	offset, err = strconv.Atoi(offsetStr)
-	if err != nil {
-		return 0, 0, ErrInvalidQueryParam
-	}
-
-	if limit < 1 || limit > 100 || offset < 0 {
-		return 0, 0, errors.New("query parameter out of range")
-	}
-
-	return limit, offset, nil
+type RepoInfo struct {
+	database.Repo
+	git.RepoSummary
 }
 
 func (s *server) createNewRepoHandler(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +94,10 @@ func (s *server) getUserReposHandler(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
 	username := r.PathValue("username")
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
 	limitStr := queryParams.Get("limit")
 	if limitStr == "" {
 		limitStr = "20"
@@ -156,11 +129,54 @@ func (s *server) getUserReposHandler(w http.ResponseWriter, r *http.Request) {
 	repos, err := database.GetUserRepos(r.Context(), s.db, user, limit, offset)
 
 	if err != nil {
-		log.Printf("get repos: %v", err)
+		log.Printf("get user repos: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
 	writeJson(w, http.StatusOK, repos)
+}
+
+func (s *server) getUserRepoHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+	repoName := r.PathValue("repo")
+
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validateRepoName(repoName); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	repo, err := database.GetUserRepo(r.Context(), s.db, repoName, username)
+
+	switch {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		log.Printf("user repo get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	repoPath := filepath.Join(s.repoPath, repo.Owner, repo.Name+".git")
+	repoSummary, err := git.GetRepoSummary(r.Context(), repoPath)
+
+	switch {
+	case errors.Is(err, git.ErrRepoNotExists):
+		log.Printf("repo %s/%s missing on disk: %v", repo.Owner, repo.Name, err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	case err != nil:
+		log.Printf("repo summary get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	writeJson(w, http.StatusOK, RepoInfo{repo, repoSummary})
 }

@@ -11,6 +11,11 @@ import (
 func (s *server) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.PathValue("username")
 
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
 	user, err := database.FindByUsername(r.Context(), s.db, username)
 
 	switch {

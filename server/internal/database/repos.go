@@ -72,3 +72,21 @@ func GetUserRepos(ctx context.Context, db *sql.DB, owner User, limit, offset int
 	}
 	return repos, rows.Err()
 }
+
+func GetUserRepo(ctx context.Context, db *sql.DB, repoName, owner string) (Repo, error) {
+	var repo Repo
+	err := db.QueryRowContext(ctx,
+		`SELECT r.id,r.name,u.username,r.created_at
+		 FROM repos r JOIN users u ON r.owner_id = u.id
+		 WHERE r.name = ? AND u.username = ?`, repoName, owner).Scan(&repo.ID, &repo.Name, &repo.Owner, &repo.CreatedAt)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return Repo{}, ErrNotFound
+	}
+
+	if err != nil {
+		return Repo{}, err
+	}
+
+	return repo, nil
+}

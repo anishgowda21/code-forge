@@ -13,18 +13,6 @@ type signUpRequest struct {
 	Username string `json:"username"`
 }
 
-func validateUsername(username string) error {
-	if len(username) == 0 || len(username) > 39 {
-		return errors.New("invalid username length")
-	}
-
-	if !usernameRe.MatchString(username) {
-		return errors.New("invalid username")
-	}
-
-	return nil
-}
-
 func (s *server) signUpHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 
