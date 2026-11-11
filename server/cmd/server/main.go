@@ -33,7 +33,7 @@ func createDataDir(path string) (dbPath, repoPath string, err error) {
 	}
 
 	repoPath = filepath.Join(path, "repo")
-	err = os.MkdirAll(dbPath, 0755)
+	err = os.MkdirAll(repoPath, 0755)
 	if err != nil {
 		return "", "", err
 	}
