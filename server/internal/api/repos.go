@@ -180,3 +180,55 @@ func (s *server) getUserRepoHandler(w http.ResponseWriter, r *http.Request) {
 
 	writeJson(w, http.StatusOK, RepoInfo{repo, repoSummary})
 }
+
+func (s *server) getRepoDirectoryTree(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.Query()
+
+	username := r.PathValue("username")
+	repoName := r.PathValue("repo")
+	refName := queryParams.Get("ref")
+	dirPath := queryParams.Get("path")
+
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validateRepoName(repoName); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validatePath(dirPath); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := validateRef(refName); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	repo, err := database.GetUserRepo(r.Context(), s.db, repoName, username)
+
+	switch {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		log.Printf("user repo get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	repoPath := filepath.Join(s.repoPath, repo.Owner, repo.Name+".git")
+	o, e := git.GetRefDirectory(r.Context(), repoPath, refName, dirPath)
+
+	if e != nil {
+		writeError(w, http.StatusInternalServerError, e.Error())
+		return
+	}
+
+	writeJson(w, http.StatusOK, o)
+
+}

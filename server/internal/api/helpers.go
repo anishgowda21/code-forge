@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -54,4 +55,66 @@ func validatePagParama(limitStr, offsetStr string) (limit, offset int, err error
 	}
 
 	return limit, offset, nil
+}
+
+func validatePath(path string) error {
+	if path == "" {
+		return nil
+	}
+
+	if strings.HasPrefix(path, "/") || strings.ContainsRune(path, '\x00') {
+		return errors.New("invalid path")
+	}
+
+	for seg := range strings.SplitSeq(path, "/") {
+		if seg == "." || seg == ".." || seg == "" {
+			return errors.New("invalid path")
+		}
+	}
+
+	return nil
+}
+
+func validateRef(name string) error {
+	if name == "" {
+		return nil
+	}
+
+	//prefix
+	if strings.HasPrefix(name, "-") {
+		return errors.New("invalid ref")
+	}
+
+	//suffix
+	if strings.HasSuffix(name, ".") {
+		return errors.New("invalid ref")
+	}
+
+	//contains
+	if strings.Contains(name, "..") || strings.Contains(name, "@{") {
+		return errors.New("invalid ref")
+	}
+	var mustNotContain = []byte{'~', '^', ':', '?', '*', '[', '\\', ' '}
+	for i := 0; i < len(name); i++ {
+		char := name[i]
+
+		if slices.Contains(mustNotContain, char) || char < 32 || char == 127 {
+			return errors.New("invalid ref")
+		}
+	}
+
+	//single @
+	if name == "@" {
+		return errors.New("invalid ref")
+	}
+
+	//path component
+	for seg := range strings.SplitSeq(name, "/") {
+		if strings.HasPrefix(seg, ".") ||
+			strings.HasSuffix(seg, ".lock") || seg == "" {
+			return errors.New("invalid ref")
+		}
+	}
+
+	return nil
 }
