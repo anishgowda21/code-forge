@@ -1,20 +1,38 @@
+// helper.go
 package git
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+)
 
-func getTreeObjectType(mode, object string) (RefTreeObjectType, error) {
-	//Ref: https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
-	switch object {
-	case "tree":
-		return TypeDir, nil
-	case "commit":
-		return TypeSubmodule, nil
-	case "blob":
-		if mode == "120000" {
-			return TypeSymlink, nil
+// repoDirExists reports whether repoPath exists and is a directory.
+func repoDirExists(repoPath string) (bool, error) {
+	info, err := os.Stat(repoPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
 		}
-		return TypeFile, nil
-	default:
-		return "", fmt.Errorf("get tree object type: unexpected object:%q", object)
+		return false, fmt.Errorf("stat repo: %w", err)
 	}
+
+	if !info.IsDir() {
+		return false, fmt.Errorf("stat repo: %q is not a directory", repoPath)
+	}
+
+	return true, nil
+}
+
+// ensureRepoExists is for the read paths: a missing repo is ErrRepoNotExists.
+func ensureRepoExists(repoPath string) error {
+	exists, err := repoDirExists(repoPath)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrRepoNotExists
+	}
+	return nil
 }

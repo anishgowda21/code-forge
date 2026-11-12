@@ -2,14 +2,9 @@ package git
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 )
-
-var ErrRepoDirExists = errors.New("repo already exists")
 
 func InitBareRepo(ctx context.Context, path, repoName string) error {
 	if err := ctx.Err(); err != nil {
@@ -17,11 +12,13 @@ func InitBareRepo(ctx context.Context, path, repoName string) error {
 	}
 
 	repoPath := filepath.Join(path, repoName+".git")
+	exists, err := repoDirExists(repoPath)
 
-	if _, err := os.Stat(repoPath); err == nil {
+	if err != nil {
+		return err
+	}
+	if exists {
 		return ErrRepoDirExists
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("stat repo path: %w", err)
 	}
 
 	var cmdArgs = []string{"git", "init", "--bare", "--initial-branch=main", repoPath}
