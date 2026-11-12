@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/anishgowda21/code-forge/server/internal/database"
@@ -188,6 +189,10 @@ func (s *server) getRepoDirectoryTree(w http.ResponseWriter, r *http.Request) {
 	repoName := r.PathValue("repo")
 	refName := queryParams.Get("ref")
 	dirPath := queryParams.Get("path")
+
+	if dirPath != "/" {
+		dirPath = strings.TrimSuffix(dirPath, "/")
+	}
 
 	if err := validateUsername(username); err != nil {
 		writeError(w, http.StatusNotFound, "not found")
