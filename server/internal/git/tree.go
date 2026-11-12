@@ -28,7 +28,7 @@ type RefTreeEntry struct {
 	Type RefTreeObjectType `json:"type"`
 	Mode string            `json:"mode"`
 	Sha  string            `json:"sha"`
-	Size *int64            `json:"size,omitempty"`
+	Size *int64            `json:"size,omitzero"`
 }
 
 func checkDirPath(ctx context.Context, commit, dirPath, repoPath string) error {
@@ -208,13 +208,10 @@ func GetRefDirectory(ctx context.Context, repoPath, refName, dirPath string) (Re
 		return RefTreeResp{}, err
 	}
 
-	var err error
+	refName, err := settleRefName(ctx, refName, repoPath)
 
-	if refName == "" {
-		refName, err = getDefaultRepoBranch(ctx, repoPath)
-		if err != nil {
-			return RefTreeResp{}, err
-		}
+	if err != nil {
+		return RefTreeResp{}, err
 	}
 
 	commit, err := getBranchCommit(ctx, refName, repoPath)

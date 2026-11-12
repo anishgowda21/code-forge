@@ -45,3 +45,16 @@ func getBranchCommit(ctx context.Context, branchName, repoPath string) (string, 
 
 	return output, nil
 }
+
+func settleRefName(ctx context.Context, refName, repoPath string) (string, error) {
+	if refName != "" {
+		return refName, nil
+	}
+
+	refName, err := getDefaultRepoBranch(ctx, repoPath)
+	if err != nil {
+		return "", err
+	}
+
+	return refName, nil
+}

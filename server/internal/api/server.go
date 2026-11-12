@@ -30,6 +30,7 @@ func NewServer(db *sql.DB, repoPath string) *http.ServeMux {
 	mux.HandleFunc("/users/{username}/repos", s.getUserReposHandler)
 	mux.HandleFunc("/users/{username}/repos/{repo}", s.getUserRepoHandler)
 	mux.HandleFunc("/users/{username}/repos/{repo}/tree", s.getRepoDirectoryTree)
+	mux.HandleFunc("/users/{username}/repos/{repo}/blob", s.getRepoBlob)
 	mux.HandleFunc("POST /users/{username}/repos", s.createNewRepoHandler)
 	mux.HandleFunc("/", catchAll)
 	return mux
