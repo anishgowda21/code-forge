@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -250,6 +251,21 @@ func getCommitTree(ctx context.Context, commit, dirPath, repoPath string) ([]Ref
 
 		entries = append(entries, entry)
 	}
+
+	slices.SortFunc(entries, func(a, b RefTreeEntry) int {
+		aDir := a.Type == TypeDir
+		bDir := b.Type == TypeDir
+
+		if aDir && !bDir {
+			return -1
+		}
+
+		if !aDir && bDir {
+			return 1
+		}
+
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	return entries, nil
 }

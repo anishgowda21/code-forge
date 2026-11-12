@@ -3,6 +3,7 @@ package git
 import "fmt"
 
 func getTreeObjectType(mode, object string) (RefTreeObjectType, error) {
+	//Ref: https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
 	switch object {
 	case "tree":
 		return TypeDir, nil
