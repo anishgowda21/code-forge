@@ -222,13 +222,23 @@ func (s *server) getRepoDirectoryTree(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repoPath := filepath.Join(s.repoPath, repo.Owner, repo.Name+".git")
-	o, e := git.GetRefDirectory(r.Context(), repoPath, refName, dirPath)
+	resp, err := git.GetRefDirectory(r.Context(), repoPath, refName, dirPath)
 
-	if e != nil {
-		writeError(w, http.StatusInternalServerError, e.Error())
+	if err != nil {
+		switch {
+		case errors.Is(err, git.ErrPathNotExists), errors.Is(err, git.ErrRefNotExists):
+			writeError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, git.ErrNotADirectory):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, git.ErrRepoNotExists):
+			log.Printf("repo %s/%s missing on disk: %v", repo.Owner, repo.Name, err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+		default:
+			log.Printf("repo dir tree get: %v", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 
-	writeJson(w, http.StatusOK, o)
-
+	writeJson(w, http.StatusOK, resp)
 }
