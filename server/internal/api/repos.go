@@ -314,3 +314,81 @@ func (s *server) getRepoBlob(w http.ResponseWriter, r *http.Request) {
 
 	writeJson(w, http.StatusOK, resp)
 }
+
+func (s *server) getRepoCommitHistory(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.Query()
+
+	username := r.PathValue("username")
+	repoName := r.PathValue("repo")
+	refName := queryParams.Get("ref")
+	filePath := queryParams.Get("path")
+	limitStr := queryParams.Get("limit")
+	offsetStr := queryParams.Get("offset")
+
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validateRepoName(repoName); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validatePath(filePath); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := validateRef(refName); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if limitStr == "" {
+		limitStr = "20"
+	}
+
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+
+	limit, offset, err := validatePagParama(limitStr, offsetStr)
+
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	repo, err := database.GetUserRepo(r.Context(), s.db, repoName, username)
+
+	switch {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		log.Printf("user repo get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	repoPath := filepath.Join(s.repoPath, repo.Owner, repo.Name+".git")
+
+	hist, err := git.GetCommitHistory(r.Context(), repoPath, refName, filePath, limit, offset)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, git.ErrRefNotExists):
+			writeError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, git.ErrRepoNotExists):
+			log.Printf("repo %s/%s missing on disk: %v", repo.Owner, repo.Name, err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+		default:
+			log.Printf("repo dir tree get: %v", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
+		return
+	}
+
+	writeJson(w, http.StatusOK, hist)
+}
