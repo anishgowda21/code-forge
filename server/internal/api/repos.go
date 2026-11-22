@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/http/cgi"
 	"os"
 	"path/filepath"
 	"strings"
@@ -391,4 +392,83 @@ func (s *server) getRepoCommitHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJson(w, http.StatusOK, hist)
+}
+
+func (s *server) gitHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	repoName, ok := strings.CutSuffix(r.PathValue("repo"), ".git")
+	if !ok {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	rest := r.PathValue("rest")
+	svc := r.URL.Query().Get("service")
+
+	isPush := rest == "git-receive-pack" || (rest == "info/refs" && svc == "git-receive-pack")
+
+	if isPush {
+		writeError(w, http.StatusForbidden, "push not allowed")
+		return
+	}
+
+	allowed := false
+
+	switch {
+	case r.Method == http.MethodGet && rest == "info/refs":
+		allowed = svc == "git-upload-pack"
+
+	case r.Method == http.MethodPost && rest == "git-upload-pack":
+		allowed = true
+	}
+
+	if !allowed {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	username := r.PathValue("username")
+
+	if err := validateUsername(username); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if err := validateRepoName(repoName); err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	_, err := database.GetUserRepo(r.Context(), s.db, repoName, username)
+
+	switch {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		log.Printf("user repo get: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	select {
+	case s.gitSem <- struct{}{}:
+		defer func() { <-s.gitSem }()
+	default:
+		w.Header().Set("Retry-After", "5")
+		writeError(w, http.StatusServiceUnavailable, "server busy, try again later")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
+	h := &cgi.Handler{
+		Path: s.gitPath,
+		Args: []string{"http-backend"},
+		Env: []string{
+			"GIT_PROJECT_ROOT=" + s.repoPath,
+			"GIT_HTTP_EXPORT_ALL=1",
+		},
+	}
+
+	h.ServeHTTP(w, r)
+
 }
